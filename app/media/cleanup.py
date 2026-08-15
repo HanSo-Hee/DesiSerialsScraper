@@ -3,6 +3,7 @@
 import os
 import glob
 import logging
+from typing import Optional
 from pathlib import Path
 from app.config import get_settings
 
