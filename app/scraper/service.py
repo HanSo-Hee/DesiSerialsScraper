@@ -1,7 +1,7 @@
 # github.com/MrAbhi2k3
 
 import logging
-from typing import List
+from typing import List, Optional
 from app.config import get_settings
 from app.database.models import EpisodeModel, EpisodeStatus
 from app.database.repositories import EpisodeRepository, ShowRepository
