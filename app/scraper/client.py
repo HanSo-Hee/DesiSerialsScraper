@@ -1,5 +1,3 @@
-# github.com/MrAbhi2k3
-
 import asyncio
 import logging
 from typing import Optional
@@ -46,20 +44,12 @@ class ScraperClient:
     async def fetch_html(self, url: str) -> str:
         session = await self.get_session()
         logger.debug(f"Fetching HTML from URL: {url}")
-        try:
-            async with session.get(url) as response:
-                if response.status == 403:
-                    logger.warning(f"Got 403 Forbidden for {url}, attempting Playwright fallback...")
-                    from app.scraper.resolver import StreamResolver
-                    return await StreamResolver.resolve_stream_url(url)
-                response.raise_for_status()
-                html = await response.text()
-                if self.request_delay > 0:
-                    await asyncio.sleep(self.request_delay)
-                return html
-        except Exception as e:
-            logger.error(f"Error fetching HTML from {url}: {e}")
-            raise
+        async with session.get(url) as response:
+            response.raise_for_status()
+            html = await response.text()
+            if self.request_delay > 0:
+                await asyncio.sleep(self.request_delay)
+            return html
 
     async def close(self):
         if self.session and not self.session.closed:

@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     ADMIN_IDS: Any = Field(default_factory=list)
     FORCE_SUB_CHANNELS: Any = Field(default_factory=lambda: [-1001259499812])
 
-    SOURCE_URL: str = "https://desiserials.com.co/"
-    TARGET_DOMAINS: Any = Field(default_factory=lambda: ["desiserials.com.co", "www.desi-serials.to"])
+    SOURCE_URL: str = "https://www.desi-serials.to/latest-episodes/"
+    TARGET_DOMAINS: Any = Field(default_factory=lambda: ["www.desi-serials.to", "desi-serials.to"])
     SCRAPE_INTERVAL: int = 1800
 
     DELETE_AFTER_HOURS: float = 12.0
@@ -85,11 +85,11 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             v = v.strip()
             if not v:
-                return ["desiserials.com.co", "www.desi-serials.to"]
+                return ["www.desi-serials.to", "desi-serials.to"]
             return [x.strip().lower() for x in v.split(",") if x.strip()]
         if isinstance(v, list):
             return v
-        return ["desiserials.com.co", "www.desi-serials.to"]
+        return ["www.desi-serials.to", "desi-serials.to"]
 
     @field_validator("SOURCE_URL")
     @classmethod

@@ -170,7 +170,7 @@ def register_handlers(app: Client):
             await service.process_single_episode(inserted, status_message=status_msg)
             
             # Fetch updated episode record with file_id
-            updated_ep = await EpisodeRepository.get_by_id(inserted.id)
+            updated_ep = await EpisodeRepository.find_by_id(inserted.id)
             if updated_ep and updated_ep.telegram_file_id:
                 await client.send_video(
                     chat_id=message.chat.id,
@@ -275,7 +275,21 @@ def register_handlers(app: Client):
             inserted = await EpisodeRepository.insert(ep_model)
             service = EpisodeService()
             await service.process_single_episode(inserted, status_message=status_msg)
-            await status_msg.edit_text(f"✅ Successfully processed **{inserted.show_name}** - Ep {inserted.episode_number}!")
+
+            updated_ep = await EpisodeRepository.find_by_id(inserted.id)
+            if updated_ep and updated_ep.telegram_file_id:
+                await client.send_video(
+                    chat_id=callback_query.message.chat.id,
+                    video=updated_ep.telegram_file_id,
+                    caption=format_main_caption(
+                        show_name=updated_ep.show_name,
+                        episode_number=updated_ep.episode_number,
+                        episode_date=updated_ep.episode_date
+                    )
+                )
+                await status_msg.edit_text(f"🎉 **Download & Upload Complete!**\n\n**{inserted.show_name}** has been delivered above. 🚀")
+            else:
+                await status_msg.edit_text(f"✅ Successfully processed **{inserted.show_name}** - Ep {inserted.episode_number}!")
         except Exception as e:
             logger.error(f"Error processing single latest episode: {e}", exc_info=True)
             await status_msg.edit_text(f"❌ Upload failed: {e}")

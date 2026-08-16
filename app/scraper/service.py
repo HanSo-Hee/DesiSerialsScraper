@@ -18,9 +18,6 @@ class ScraperService:
     async def scan_and_ingest(self) -> List[EpisodeModel]:
         settings = get_settings()
         sources = [settings.SOURCE_URL]
-        alt_source = "https://www.desi-serials.to/latest-episodes/"
-        if alt_source not in sources:
-            sources.append(alt_source)
 
         new_episodes: List[EpisodeModel] = []
         for src_url in sources:

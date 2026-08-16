@@ -59,18 +59,31 @@ class EpisodeService:
 
         try:
             if episode.media_url and not episode.telegram_file_id:
+                import re as _re
+                clean_media_url = _re.sub(r'^httpss://', 'https://', episode.media_url, flags=_re.I)
+                if not _re.match(r'^https?://', clean_media_url, _re.I):
+                    await EpisodeRepository.record_error(episode.id, f"Invalid URL scheme: {episode.media_url}", status=EpisodeStatus.FAILED)
+                    return
                 try:
                     from app.scraper.resolver import StreamResolver
-                    resolved_url = await StreamResolver.resolve_stream_url(episode.media_url)
+                    resolved_url = await StreamResolver.resolve_stream_url(clean_media_url)
+                    if not resolved_url:
+                        logger.warning(f"StreamResolver could not resolve stream for episode {episode.id}. Marking FAILED.")
+                        await EpisodeRepository.record_error(episode.id, "Stream could not be resolved from player embed.", status=EpisodeStatus.FAILED)
+                        return
                     clean_name = f"{episode.show_name} Ep {episode.episode_number} [@tellyfun_official].mp4".replace("/", "-")
-                    video_filename = clean_name
                     video_path = await self.downloader.download_file(
                         resolved_url,
-                        custom_filename=video_filename,
+                        custom_filename=clean_name,
                         status_message=status_message
                     )
                 except Exception as e:
                     logger.warning(f"Could not download video file for episode {episode.id}: {e}")
+
+            if not video_path and not episode.telegram_file_id:
+                logger.error(f"No video available for episode {episode.id}. Marking FAILED.")
+                await EpisodeRepository.record_error(episode.id, "No video downloaded and no cached file_id.", status=EpisodeStatus.FAILED)
+                return
 
             if episode.poster_url:
                 try:
@@ -79,7 +92,6 @@ class EpisodeService:
                 except Exception as e:
                     logger.warning(f"Could not download poster image for episode {episode.id}: {e}")
 
-            # 3. Transition to UPLOADING
             await EpisodeRepository.update_status(episode.id, EpisodeStatus.UPLOADING)
 
             # 4. Upload to MAIN channel
