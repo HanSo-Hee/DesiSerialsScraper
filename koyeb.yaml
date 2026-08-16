@@ -1,4 +1,4 @@
-# koyeb.yaml service configuration
+# koyeb.yaml service configuration for Telegram Worker Bot
 type: worker
 name: serial-bot
 build:
@@ -6,3 +6,4 @@ build:
   dockerfile: Dockerfile
 run:
   command: python run.py
+checks: []

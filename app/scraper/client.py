@@ -9,9 +9,17 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 logger = logging.getLogger(__name__)
 
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Ch-Ua": '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1"
 }
 
 
@@ -38,12 +46,20 @@ class ScraperClient:
     async def fetch_html(self, url: str) -> str:
         session = await self.get_session()
         logger.debug(f"Fetching HTML from URL: {url}")
-        async with session.get(url) as response:
-            response.raise_for_status()
-            html = await response.text()
-            if self.request_delay > 0:
-                await asyncio.sleep(self.request_delay)
-            return html
+        try:
+            async with session.get(url) as response:
+                if response.status == 403:
+                    logger.warning(f"Got 403 Forbidden for {url}, attempting Playwright fallback...")
+                    from app.scraper.resolver import StreamResolver
+                    return await StreamResolver.resolve_stream_url(url)
+                response.raise_for_status()
+                html = await response.text()
+                if self.request_delay > 0:
+                    await asyncio.sleep(self.request_delay)
+                return html
+        except Exception as e:
+            logger.error(f"Error fetching HTML from {url}: {e}")
+            raise
 
     async def close(self):
         if self.session and not self.session.closed:
