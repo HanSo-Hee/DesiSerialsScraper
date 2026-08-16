@@ -172,10 +172,16 @@ class ScraperParser:
             if re.search(r'\.(mp4|mkv|m3u8|avi)(\?.*)?$', href, re.I):
                 return urljoin(base_url, href)
 
-        # Look for stream iframe players
+        # Look for stream iframe players or player redirect anchors
         for iframe in soup.find_all("iframe", src=True):
             iframe_src = iframe["src"]
-            if any(k in iframe_src.lower() for k in ["stream", "embed", "player", "tamilembed", "vkprime", "videoman", ".mp4", ".m3u8"]):
+            if any(k in iframe_src.lower() for k in ["stream", "embed", "player", "tamilembed", "vkprime", "videoman", "tvlogy", "tvarticles", "vidd", ".mp4", ".m3u8"]):
                 return urljoin(base_url, iframe_src)
+
+        # Look for player anchors like tvarticles.org / tvlogy / vidd links
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if any(k in href.lower() for k in ["tvarticles", "tvlogy", "vidd.php", "embed", "stream"]):
+                return urljoin(base_url, href)
 
         return None

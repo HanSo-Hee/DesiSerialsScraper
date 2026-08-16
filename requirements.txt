@@ -13,3 +13,4 @@ python-dotenv>=1.0.0
 tenacity>=8.2.0
 playwright>=1.40.0
 Pillow>=10.0.0
+tgcrypto>=1.2.5

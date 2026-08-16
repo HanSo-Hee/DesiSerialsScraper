@@ -12,7 +12,7 @@ class StreamResolver:
     @staticmethod
     async def resolve_stream_url(url: str, timeout: int = 15) -> str:
         """Resolves raw media video stream (.mp4 / googlevideo) from dynamic embed players using Playwright."""
-        if any(x in url.lower() for x in [".mp4", "googlevideo.com/videoplayback"]):
+        if any(x in url.lower() for x in [".mp4", "googlevideo.com/videoplayback"]) and ".m3u8" not in url.lower():
             return url
 
         logger.info(f"Resolving dynamic stream from player embed: {url}")
@@ -29,15 +29,15 @@ class StreamResolver:
                 def handle_request(req):
                     nonlocal captured_stream
                     r_url = req.url
-                    if ("googlevideo.com/videoplayback" in r_url or r_url.endswith(".mp4")) and not captured_stream:
+                    if ("googlevideo.com/videoplayback" in r_url or ".m3u8" in r_url or r_url.endswith(".mp4")) and not captured_stream:
                         captured_stream = r_url
-                        logger.info(f"StreamResolver successfully captured direct stream: {captured_stream[:100]}...")
+                        logger.info(f"StreamResolver successfully captured direct stream: {captured_stream[:120]}...")
 
                 page.on("request", handle_request)
 
                 try:
                     await page.goto(url, timeout=timeout * 1000)
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(2.5)
 
                     # Trigger playback across page frames
                     for frame in page.frames:
