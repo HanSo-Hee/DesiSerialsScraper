@@ -2,10 +2,13 @@
 
 import re
 import logging
+import warnings
 from typing import List, Optional
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from urllib.parse import urljoin
 from app.scraper.models import ScrapedEpisode
+
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +17,7 @@ class ScraperParser:
     @staticmethod
     def parse_latest_episodes(html_content: str, base_url: str) -> List[dict]:
         """Extracts listing items (title, url, poster, date snippet) from listing/home page HTML."""
-        soup = BeautifulSoup(html_content, "lxml" if "lxml" in BeautifulSoup.__dict__ else "html.parser")
+        soup = BeautifulSoup(html_content, "lxml")
         items = []
 
         # Target article, post, or entry tags
