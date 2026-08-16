@@ -1,0 +1,8 @@
+# koyeb.yaml service configuration
+type: worker
+name: serial-bot
+build:
+  type: docker
+  dockerfile: Dockerfile
+run:
+  command: python run.py
