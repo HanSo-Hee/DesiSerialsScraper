@@ -103,16 +103,16 @@ def register_handlers(app: Client):
     async def url_ingest_handler(client: Client, message: Message):
         settings = get_settings()
         url = message.text.strip()
-        
+
         msg_domain = urlparse(url).netloc.lower()
         allowed_domains = [d.lower() for d in settings.TARGET_DOMAINS]
 
         if not any(dom in msg_domain for dom in allowed_domains):
-            await message.reply_text(f"❌ URL domain `{msg_domain}` is not in supported domain list: `{allowed_domains}`.")
+            await message.reply_text(f"❌ Only `desi-serials.to` links are supported.")
             return
 
-        status_msg = await message.reply_text(Script.URL_INSPECTING_TXT)
-        
+        status_msg = await message.reply_text("🔍 Fetching episode info...")
+
         try:
             from app.scraper.client import ScraperClient
             from app.scraper.parser import ScraperParser
@@ -125,26 +125,25 @@ def register_handlers(app: Client):
             await client_http.close()
 
             scraped = ScraperParser.parse_episode_page(html, url)
-            if not scraped:
-                await status_msg.edit_text(Script.URL_FAILED_PARSE_TXT)
+            if not scraped or not scraped.media_url:
+                await status_msg.edit_text("❌ Could not extract episode data from the URL.")
                 return
 
             existing = await EpisodeRepository.find_duplicate(source_url=scraped.episode_url, canonical_id=scraped.canonical_id)
-            if existing:
-                await status_msg.edit_text(Script.URL_ALREADY_EXISTS_TXT.format(
-                    show_name=existing.show_name,
-                    episode_number=existing.episode_number,
-                    status=existing.status.value
-                ))
-                if existing.telegram_file_id:
-                    await client.send_video(
-                        chat_id=message.chat.id,
-                        video=existing.telegram_file_id,
-                        caption=f"📺 **{existing.show_name}** - Ep {existing.episode_number}\n📅 {existing.episode_date}"
-                    )
+            if existing and existing.telegram_file_id:
+                await status_msg.edit_text(f"⚠️ Already uploaded: **{existing.show_name}** Ep {existing.episode_number}")
+                await client.send_video(
+                    chat_id=message.chat.id,
+                    video=existing.telegram_file_id,
+                    caption=f"📺 **{existing.show_name}** - Ep {existing.episode_number}\n📅 {existing.episode_date}"
+                )
                 return
 
-            show = await ShowRepository.get_or_create(name=scraped.show_name, normalized_name=scraped.normalized_show_name, poster_url=scraped.poster_url)
+            show = await ShowRepository.get_or_create(
+                name=scraped.show_name,
+                normalized_name=scraped.normalized_show_name,
+                poster_url=scraped.poster_url
+            )
             ep_model = EpisodeModel(
                 show_name=scraped.show_name,
                 normalized_show_name=scraped.normalized_show_name,
@@ -160,34 +159,27 @@ def register_handlers(app: Client):
             )
 
             inserted = await EpisodeRepository.insert(ep_model)
-            await status_msg.edit_text(Script.URL_INGEST_SUCCESS_TXT.format(
-                show_name=inserted.show_name,
-                episode_number=inserted.episode_number,
-                episode_date=inserted.episode_date
-            ))
+            await status_msg.edit_text(
+                f"✅ Found: **{inserted.show_name}** Ep {inserted.episode_number}\n⏳ Downloading & uploading..."
+            )
 
             service = EpisodeService()
-            await service.process_single_episode(inserted, status_message=status_msg)
-            
-            # Fetch updated episode record with file_id
-            updated_ep = await EpisodeRepository.find_by_id(inserted.id)
+            updated_ep = await service.process_single_episode(
+                inserted,
+                status_message=status_msg,
+                reply_to_user_chat=message.chat.id
+            )
+
             if updated_ep and updated_ep.telegram_file_id:
-                await client.send_video(
-                    chat_id=message.chat.id,
-                    video=updated_ep.telegram_file_id,
-                    caption=format_main_caption(
-                        show_name=updated_ep.show_name,
-                        episode_number=updated_ep.episode_number,
-                        episode_date=updated_ep.episode_date
-                    )
-                )
-                await status_msg.edit_text("🎉 **Download & Upload Complete!**\n\nYour video has been delivered above. 🚀")
+                await status_msg.edit_text(f"🎉 Done! **{inserted.show_name}** has been sent to you above.")
             else:
-                await status_msg.edit_text("🚀 Episode pipeline processing complete!")
+                await status_msg.edit_text("❌ Could not resolve or download the video stream. Episode marked as failed.")
 
         except Exception as e:
             logger.error(f"Error processing user URL {url}: {e}", exc_info=True)
-            await status_msg.edit_text(f"❌ Failed processing URL: {e}")
+            await status_msg.edit_text(f"❌ Error: {e}")
+
+
 
     admin_commands = ["status", "scan", "recheck", "pause", "resume", "retry", "cleanup", "stats", "search", "latest"]
 

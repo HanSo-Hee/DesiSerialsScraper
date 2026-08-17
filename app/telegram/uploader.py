@@ -196,13 +196,31 @@ class TelegramUploader:
 
     @classmethod
     async def send_log(cls, text: str):
-        """Sends administrative log event notification if LOG_CHANNEL_ID is configured."""
         settings = get_settings()
         if not settings.LOG_CHANNEL_ID:
             return
-
         client = cls.get_client()
         try:
             await client.send_message(chat_id=settings.LOG_CHANNEL_ID, text=text)
         except Exception as e:
             logger.warning(f"Failed to send log message: {e}")
+
+    @classmethod
+    async def send_video_to_chat(cls, chat_id: int, file_id: str, episode: EpisodeModel):
+        client = cls.get_client()
+        try:
+            caption = (
+                f"🎉 **Done! Here's your episode:**\n\n"
+                f"📺 **{episode.show_name}**\n"
+                f"🎬 Episode {episode.episode_number}\n"
+                f"📅 {episode.episode_date}\n\n"
+                f"Uploaded by @TellyFun_Official"
+            )
+            await client.send_video(
+                chat_id=chat_id,
+                video=file_id,
+                caption=caption
+            )
+        except Exception as e:
+            logger.warning(f"Could not reply video to user chat {chat_id}: {e}")
+
