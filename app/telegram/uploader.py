@@ -46,7 +46,33 @@ class TelegramUploader:
         # 2. Upload video file if available
         elif video_file_path and os.path.exists(video_file_path):
             thumb = poster_file_path if (poster_file_path and os.path.exists(poster_file_path)) else None
-            
+
+            duration = None
+            width = None
+            height = None
+            try:
+                import subprocess, json
+                probe_cmd = [
+                    "ffprobe", "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height,duration:format=duration",
+                    "-of", "json",
+                    video_file_path
+                ]
+                res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if res.returncode == 0 and res.stdout:
+                    data = json.loads(res.stdout)
+                    streams = data.get("streams", [])
+                    if streams:
+                        width = streams[0].get("width")
+                        height = streams[0].get("height")
+                        if "duration" in streams[0]:
+                            duration = int(float(streams[0]["duration"]))
+                    if not duration and "format" in data and "duration" in data["format"]:
+                        duration = int(float(data["format"]["duration"]))
+            except Exception as e:
+                logger.warning(f"Could not extract video duration/metadata: {e}")
+
             progress_cb = None
             if status_message:
                 from app.telegram.progress import ProgressTracker
@@ -56,6 +82,9 @@ class TelegramUploader:
             msg = await client.send_video(
                 chat_id=settings.MAIN_CHANNEL_ID,
                 video=video_file_path,
+                duration=duration or 0,
+                width=width or 0,
+                height=height or 0,
                 thumb=thumb,
                 caption=caption,
                 reply_markup=reply_markup,
