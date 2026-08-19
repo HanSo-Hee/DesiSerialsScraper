@@ -64,6 +64,19 @@ async def start_app():
     # 6. Start Scheduler
     SchedulerManager.initialize()
 
+    # 7. Start lightweight HTTP ping server on port 8000 (for Koyeb health checks)
+    from aiohttp import web
+    async def handle_ping(request):
+        return web.Response(text="OK")
+    server_app = web.Application()
+    server_app.router.add_get("/", handle_ping)
+    server_app.router.add_get("/health", handle_ping)
+    runner = web.AppRunner(server_app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8000)
+    await site.start()
+    logger.info("Health check server listening on http://0.0.0.0:8000")
+
     # Keep application running asynchronously
     try:
         await asyncio.Event().wait()
