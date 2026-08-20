@@ -1,5 +1,3 @@
-# github.com/MrAbhi2k3
-
 import logging
 from app.database.repositories import SettingsRepository
 from app.services.episode_service import EpisodeService
@@ -10,17 +8,18 @@ from app.media.cleanup import cleanup_directory
 logger = logging.getLogger(__name__)
 
 
-async def scrape_job():
+async def scrape_job() -> int:
     try:
         enabled = await SettingsRepository.get_setting("scraper_enabled", True)
         if not enabled:
             logger.debug("Scraper is currently disabled in settings.")
-            return
+            return 0
 
         service = EpisodeService()
-        await service.run_scraper_pipeline()
+        return await service.run_scraper_pipeline()
     except Exception as e:
         logger.error(f"Error executing scrape_job: {e}", exc_info=True)
+        return 0
 
 
 async def archive_job():

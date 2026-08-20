@@ -16,7 +16,7 @@ _latest_cache = {}
 
 def register_handlers(app: Client):
 
-    @app.on_message(filters.command("start") & ~admin_filter())
+    @app.on_message(filters.command("start") & filters.private & ~admin_filter())
     async def user_start_handler(client: Client, message: Message):
         from app.telegram.forcesub import ForceSubManager
         joined, missing = await ForceSubManager.check_user_joined(client, message.from_user.id)
@@ -189,31 +189,12 @@ def register_handlers(app: Client):
 
     @app.on_message(filters.command("latest") & admin_filter())
     async def latest_episodes_handler(client: Client, message: Message):
-        msg = await message.reply_text("🔄 Scraping latest episodes from `https://www.desi-serials.to/latest-episodes/`...")
+        msg = await message.reply_text("🔄 Scraping and uploading latest episodes from `https://www.desi-serials.to/latest-episodes/`...")
         try:
-            from app.scraper.extractor import ScraperExtractor
-            extractor = ScraperExtractor()
-            episodes = await extractor.extract_latest_episodes("https://www.desi-serials.to/latest-episodes/", limit=10)
-            await extractor.close()
-
-            if not episodes:
-                await msg.edit_text("❌ No latest episodes found on `https://www.desi-serials.to/latest-episodes/`.")
-                return
-
-            buttons = []
-            for idx, ep in enumerate(episodes):
-                btn_text = f"📺 {ep.show_name} - {ep.episode_date}"
-                buttons.append([InlineKeyboardButton(btn_text, callback_data=f"up_one:{idx}")])
-
-            buttons.append([InlineKeyboardButton("🚀 Upload All Today's Episodes", callback_data="up_all")])
-
-            from app.telegram.handlers import _latest_cache
-            _latest_cache[message.from_user.id] = episodes
-
-            await msg.edit_text(
-                "🎬 **Today's Latest Episodes**\nSelect an episode below to upload, or click **Upload All**:",
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
+            from app.services.episode_service import EpisodeService
+            service = EpisodeService()
+            count = await service.run_scraper_pipeline()
+            await msg.edit_text(f"🎉 Scraping complete! **{count}** new episodes ingested and uploaded.")
         except Exception as e:
             logger.error(f"Error executing /latest command: {e}", exc_info=True)
             await msg.edit_text(f"❌ Error fetching latest episodes: {e}")
