@@ -24,7 +24,7 @@ class TelegramClientManager:
             bot_token=settings.BOT_TOKEN,
             max_concurrent_transmissions=1,
             ipv6=False,
-            workdir="./downloads"
+            in_memory=True
         )
         await cls.client.start()
         cls.bot_info = await cls.client.get_me()
