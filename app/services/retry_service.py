@@ -6,12 +6,12 @@ from app.services.episode_service import EpisodeService
 
 logger = logging.getLogger(__name__)
 
-PERMANENT_FAIL_REASONS = ["Invalid URL scheme", "Stream could not be resolved"]
+PERMANENT_FAIL_REASONS = ["Invalid URL scheme"]
 
 
 class RetryService:
     @classmethod
-    async def retry_failed_episodes(cls, max_retries: int = 3) -> int:
+    async def retry_failed_episodes(cls, max_retries: int = 5) -> int:
         failed_list = await EpisodeRepository.get_failed_episodes(max_retries=max_retries)
         if not failed_list:
             return 0
@@ -22,7 +22,7 @@ class RetryService:
 
         for ep in failed_list:
             if ep.last_error and any(reason in ep.last_error for reason in PERMANENT_FAIL_REASONS):
-                logger.warning(f"Skipping permanently failed episode {ep.id}: {ep.last_error}")
+                logger.warning(f"Skipping invalid URL scheme for episode {ep.id}: {ep.last_error}")
                 continue
 
             if ep.media_url:
