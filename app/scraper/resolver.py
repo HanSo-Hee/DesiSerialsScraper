@@ -16,7 +16,7 @@ TVLOGY_CDN_RE = re.compile(
     r'https?://(?:hines|einsteinium|flow)\.tvlogy\.to/[^\s"\'<>]+',
     re.I
 )
-PLAYER_KEYWORDS = ["tvarticles", "vidd.php", "flow.tvlogy", "tvlogy", "tamilembed"]
+PLAYER_KEYWORDS = ["tvarticles", "vidd.php", "flow.tvlogy", "tvlogy", "tamilembed", "vidup", "blogger", "googlevideo"]
 
 
 def _p_unpack(source: str) -> Optional[str]:

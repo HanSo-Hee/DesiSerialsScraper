@@ -87,8 +87,7 @@ class TelegramUploader:
                 height=height or 0,
                 thumb=thumb,
                 caption=caption,
-                reply_markup=reply_markup,
-                progress=progress_cb
+                reply_markup=reply_markup
             )
         else:
             raise RuntimeError(f"No video file available to upload for episode {episode.id}")

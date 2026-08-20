@@ -25,17 +25,16 @@ class EpisodeService:
         logger.info("Running automated scraper pipeline...")
         settings = get_settings()
         extractor = ScraperExtractor()
-        scraped_list = await extractor.extract_latest_episodes(settings.SOURCE_URL, limit=25)
+        processed_count = 0
 
-        new_episodes: List[EpisodeModel] = []
-        for item in scraped_list:
+        async for item in extractor.iter_latest_episodes(settings.SOURCE_URL, limit=25):
             try:
                 existing = await EpisodeRepository.find_duplicate(
                     source_url=item.episode_url,
                     canonical_id=item.canonical_id
                 )
                 if existing:
-                    logger.debug(f"Skipping duplicate: {item.show_name} Ep {item.episode_number}")
+                    logger.info(f"Skipping duplicate: {item.show_name} Ep {item.episode_number}")
                     continue
 
                 show = await ShowRepository.get_or_create(
@@ -57,21 +56,21 @@ class EpisodeService:
                     status=EpisodeStatus.DETECTED
                 )
                 inserted = await EpisodeRepository.insert(ep)
-                new_episodes.append(inserted)
-                logger.info(f"Queued: {inserted.show_name} Ep {inserted.episode_number}")
+                logger.info(f"Processing: {inserted.show_name} Ep {inserted.episode_number}")
+
+                try:
+                    await self.process_single_episode(inserted)
+                    processed_count += 1
+                except Exception as e:
+                    logger.error(f"Error processing {inserted.id}: {e}")
+
+                await asyncio.sleep(5)
+
             except Exception as e:
                 logger.error(f"Error ingesting {item.episode_url}: {e}")
 
-        logger.info(f"Scraper pipeline complete. {len(new_episodes)} new episodes queued.")
-
-        for ep in new_episodes:
-            try:
-                await self.process_single_episode(ep)
-                await asyncio.sleep(2)
-            except Exception as e:
-                logger.error(f"Error processing {ep.id}: {e}")
-
-        return len(new_episodes)
+        logger.info(f"Scraper pipeline complete. {processed_count} new episodes processed.")
+        return processed_count
 
     async def process_detected_episodes(self):
         detected = await EpisodeRepository.get_by_status(EpisodeStatus.DETECTED)
@@ -118,11 +117,26 @@ class EpisodeService:
             safe_name = re.sub(r'[^\w\s-]', '', episode.show_name).strip().replace(' ', '_')
             filename = f"{safe_name}_Ep_{episode.episode_number}_[@tellyfun_official].mp4"
 
-            video_path = await self.downloader.download_file(
-                resolved_url,
-                custom_filename=filename,
-                status_message=status_message
-            )
+            try:
+                video_path = await self.downloader.download_file(
+                    resolved_url,
+                    custom_filename=filename,
+                    status_message=status_message
+                )
+            except Exception as dl_err:
+                if "404" in str(dl_err) or "Not Found" in str(dl_err):
+                    logger.info(f"M3U8 token expired for {episode.id}. Re-resolving stream URL...")
+                    fresh_url = await StreamResolver.resolve_stream_url(clean_url)
+                    if fresh_url and fresh_url != resolved_url:
+                        video_path = await self.downloader.download_file(
+                            fresh_url,
+                            custom_filename=filename,
+                            status_message=status_message
+                        )
+                    else:
+                        raise dl_err
+                else:
+                    raise dl_err
 
             if episode.poster_url:
                 try:

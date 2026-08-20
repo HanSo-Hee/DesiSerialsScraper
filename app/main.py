@@ -1,5 +1,3 @@
-# github.com/MrAbhi2k3
-
 import asyncio
 import logging
 import sys
@@ -14,21 +12,35 @@ from app.services.episode_service import EpisodeService
 logger = logging.getLogger(__name__)
 
 
+async def _start_health_server():
+    from aiohttp import web
+
+    async def handle_ping(request):
+        return web.Response(text="OK", content_type="text/plain")
+
+    server_app = web.Application()
+    server_app.router.add_get("/", handle_ping)
+    server_app.router.add_get("/health", handle_ping)
+    runner = web.AppRunner(server_app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8000)
+    await site.start()
+    logger.info("Health check server listening on http://0.0.0.0:8000/health")
+    return runner
+
+
 async def start_app():
-    # 1. Load settings and setup logging
     settings = get_settings()
     setup_logging(settings.LOG_LEVEL)
 
     logger.info("Starting Serial Auto Uploader Application...")
 
-    # 2. Initialize Database
     try:
         await MongoDB.connect()
     except Exception as e:
         logger.critical(f"MongoDB connection failed: {e}")
         sys.exit(1)
 
-    # 3. Initialize Telegram Bot via PyroBlack
     try:
         app = await TelegramClientManager.initialize()
         register_handlers(app)
@@ -37,11 +49,10 @@ async def start_app():
         logger.critical(f"Telegram client initialization failed: {e}")
         sys.exit(1)
 
-    # 4. Display Startup Banner
     main_ok = "OK" if perms.get("main") else "FAILED"
     file_ok = "OK" if perms.get("file") else "FAILED"
     history_ok = "OK" if perms.get("history") else "FAILED"
-    log_ok = "OK" if perms.get("log") else "DISABLED/FAILED"
+    log_ok = "OK" if perms.get("log") else "DISABLED"
 
     print("\n" + "=" * 40)
     print(" SERIAL AUTO UPLOADER")
@@ -53,37 +64,38 @@ async def start_app():
     print(f"History       : {history_ok}")
     print(f"Log Channel   : {log_ok}")
     print(f"Scraper       : ENABLED")
-    print(f"Scheduler     : ENABLED")
+    print(f"Scheduler     : IST-AWARE")
     print(f"Delete After  : {settings.DELETE_AFTER_HOURS} hours")
     print("=" * 40 + "\n")
 
-    # 5. Startup Recovery
     service = EpisodeService()
     await service.recover_stuck_episodes()
 
-    # 6. Start Scheduler
     SchedulerManager.initialize()
 
-    # 7. Start lightweight HTTP ping server on port 8000 (for Koyeb health checks)
-    from aiohttp import web
-    async def handle_ping(request):
-        return web.Response(text="OK")
-    server_app = web.Application()
-    server_app.router.add_get("/", handle_ping)
-    server_app.router.add_get("/health", handle_ping)
-    runner = web.AppRunner(server_app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8000)
-    await site.start()
-    logger.info("Health check server listening on http://0.0.0.0:8000")
+    runner = await _start_health_server()
 
-    # Keep application running asynchronously
+    stop_event = asyncio.Event()
+
+    def _handle_signal():
+        stop_event.set()
+
+    loop = asyncio.get_running_loop()
     try:
-        await asyncio.Event().wait()
+        import signal
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, _handle_signal)
+    except NotImplementedError:
+        pass
+
+    try:
+        await stop_event.wait()
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Shutdown signal received.")
+        pass
     finally:
+        logger.info("Shutdown signal received. Cleaning up...")
         SchedulerManager.shutdown()
         await TelegramClientManager.stop()
         await MongoDB.close()
+        await runner.cleanup()
         logger.info("Application shutdown complete.")

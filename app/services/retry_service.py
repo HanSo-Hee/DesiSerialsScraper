@@ -1,3 +1,4 @@
+import asyncio
 import re
 import logging
 from app.database.models import EpisodeStatus
@@ -35,5 +36,6 @@ class RetryService:
             await EpisodeRepository.update_status(ep.id, status=EpisodeStatus.DETECTED)
             await episode_service.process_single_episode(ep)
             count += 1
+            await asyncio.sleep(4.0)
 
         return count

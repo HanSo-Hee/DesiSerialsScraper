@@ -42,13 +42,24 @@ class MediaDownloader:
     async def _download_hls_stream(self, url: str, filepath: str, status_message: Optional[Any] = None) -> str:
         """Downloads an HLS .m3u8 stream using ffmpeg or segment fetching."""
         # First try ffmpeg if available
+        ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        if "token=" in url:
+            try:
+                import base64
+                tok = url.split("token=")[-1]
+                dec = base64.b64decode(tok + "==").decode("utf-8", errors="ignore")
+                if "|" in dec:
+                    ua = dec.split("|")[0]
+            except Exception:
+                pass
+
         ffmpeg_bin = self._find_ffmpeg()
         if ffmpeg_bin:
             try:
                 logger.info(f"Using ffmpeg for HLS download: {filepath}")
                 cmd = [
                     ffmpeg_bin, "-y",
-                    "-headers", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nReferer: https://flow.tvlogy.to/\r\n",
+                    "-headers", f"User-Agent: {ua}\r\nReferer: https://flow.tvlogy.to/\r\nOrigin: https://flow.tvlogy.to\r\n",
                     "-i", url,
                     "-c", "copy",
                     "-bsf:a", "aac_adtstoasc",
@@ -73,9 +84,21 @@ class MediaDownloader:
         return await self._download_hls_python(url, filepath, status_message)
 
     async def _download_hls_python(self, master_url: str, filepath: str, status_message: Optional[Any] = None) -> str:
+        ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        if "token=" in master_url:
+            try:
+                import base64
+                tok = master_url.split("token=")[-1]
+                dec = base64.b64decode(tok + "==").decode("utf-8", errors="ignore")
+                if "|" in dec:
+                    ua = dec.split("|")[0]
+            except Exception:
+                pass
+
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Referer": "https://flow.tvlogy.to/"
+            "User-Agent": ua,
+            "Referer": "https://flow.tvlogy.to/",
+            "Origin": "https://flow.tvlogy.to"
         }
         timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(headers=headers, timeout=timeout) as session:

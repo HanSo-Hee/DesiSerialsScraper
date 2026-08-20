@@ -21,7 +21,10 @@ class TelegramClientManager:
             name="serial_auto_uploader_bot",
             api_id=settings.API_ID,
             api_hash=settings.API_HASH,
-            bot_token=settings.BOT_TOKEN
+            bot_token=settings.BOT_TOKEN,
+            max_concurrent_transmissions=1,
+            ipv6=False,
+            workdir="./downloads"
         )
         await cls.client.start()
         cls.bot_info = await cls.client.get_me()
